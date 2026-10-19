@@ -186,7 +186,7 @@ summary:focus-visible {
   display: none !important;
 }
 
-/* Dauerhaft sichtbarer Zeitverlauf. */
+/* Der Zeitverlauf bleibt unten am Bildschirm sichtbar. */
 
 .chart-dock {
   position: fixed;
@@ -362,7 +362,7 @@ summary:focus-visible {
 
 <div>
 
-<!-- Versuch 1 und 2 -->
+<!-- Versuch 1 und 2: Magnet und Spule -->
 
 <svg
   id="magnetScene"
@@ -466,7 +466,7 @@ summary:focus-visible {
   </text>
 </svg>
 
-<!-- Versuch 3 -->
+<!-- Versuch 3: zwei Spulen auf gemeinsamem Eisenkern -->
 
 <svg
   id="transformerScene"
@@ -603,9 +603,7 @@ summary:focus-visible {
   </circle>
 </svg>
 
-<p class="minor">
-  Zeigerausschlag symbolisch; für Zahlenwerte gilt die Digitalanzeige.
-</p>
+<p class="minor" id="meterRangeText"></p>
 
 </div>
 
@@ -614,7 +612,9 @@ summary:focus-visible {
 <div id="magnetControls">
 
   <div class="control">
-    <label for="position">Magnetposition</label>
+    <label for="position">
+      Magnetposition
+    </label>
 
     <input
       id="position"
@@ -636,7 +636,9 @@ summary:focus-visible {
   </div>
 
   <div class="control">
-    <label for="pole">Magnetpolung</label>
+    <label for="pole">
+      Magnetpolung
+    </label>
 
     <select id="pole">
       <option value="1">
@@ -650,7 +652,9 @@ summary:focus-visible {
   </div>
 
   <div id="turnControls" class="control" hidden>
-    <label for="turns">Windungszahl der Spule</label>
+    <label for="turns">
+      Windungszahl der Spule
+    </label>
 
     <select id="turns">
       <option value="150">N = 150</option>
@@ -660,6 +664,7 @@ summary:focus-visible {
     <p class="minor">
       „Langsam“ oder „Schnell“ startet immer dieselbe Bewegung
       aus derselben Position – für einen fairen Vergleich.
+      Die Spannungsskala bleibt für beide Windungszahlen gleich.
     </p>
   </div>
 
@@ -775,6 +780,12 @@ summary:focus-visible {
     induzierten Stroms entgegen der verursachenden Flussänderung.
     Ein offener Messkreis zeigt zunächst die Spannung.
   </p>
+
+  <p>
+    Bei sehr schnellen manuellen Bewegungen können Spannungsspitzen
+    außerhalb des gewählten Diagrammbereichs liegen.
+    Der Zahlenwert bleibt an der Digitalanzeige ablesbar.
+  </p>
 </details>
 
 <details>
@@ -806,7 +817,7 @@ summary:focus-visible {
 
 </main>
 
-<!-- Der Zeitverlauf bleibt dauerhaft unten sichtbar. -->
+<!-- Dauerhaft sichtbarer Zeitverlauf -->
 
 <aside class="chart-dock" aria-label="Live-Zeitverlauf">
   <div class="chart-inner">
@@ -870,12 +881,15 @@ summary:focus-visible {
 
 const $ = id => document.getElementById(id);
 
-const fmt = (value, digits = 3) =>
-  (Math.abs(value) < 0.0005 ? 0 : value)
-    .toLocaleString("de-DE", {
-      minimumFractionDigits: digits,
-      maximumFractionDigits: digits
-    });
+function fmt(value, digits = 3) {
+  const threshold = 0.5 * Math.pow(10, -digits);
+  const cleanValue = Math.abs(value) < threshold ? 0 : value;
+
+  return cleanValue.toLocaleString("de-DE", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits
+  });
+}
 
 const tasks = [
   [
@@ -904,6 +918,14 @@ const tasks = [
   ]
 ];
 
+/*
+  Spannungsskalen:
+  Versuch 1: ±0,05 V
+  Versuch 2: ±0,30 V, unverändert für beide Windungszahlen
+  Versuch 3: ±1,50 V
+*/
+const voltageRanges = [0.05, 0.30, 1.50];
+
 let step = 0;
 let pos = -1.6;
 let I = 0;
@@ -918,6 +940,11 @@ let lastTime = null;
 let U = 0;
 
 let pointer = null;
+let dragOffset = 0;
+
+function voltageRange() {
+  return voltageRanges[step];
+}
 
 /* Magnetischer Fluss durch eine Windung. */
 
@@ -976,9 +1003,25 @@ function addHistoryPoint() {
 }
 
 /*
-  Beim Loslassen oder Anhalten:
-  Spannung sofort null, vorhandenen Fluss beibehalten.
+  Noch nicht gezeichnete manuelle Bewegung erfassen.
+  So geht eine sehr kurze Bewegung zwischen zwei
+  Animationsschritten beim Loslassen nicht verloren.
 */
+function recordPendingChange() {
+  const phi = flux();
+  const difference = phi - previousPhi;
+
+  if (Math.abs(difference) > 1e-15) {
+    const dt = 1 / 60;
+
+    U = -N() * difference / dt;
+    addHistoryPoint();
+
+    previousPhi = phi;
+  }
+}
+
+/* Bewegung beendet: Spannung sofort null. */
 
 function stopMagnetMovement() {
   if (step === 2) {
@@ -986,12 +1029,16 @@ function stopMagnetMovement() {
   }
 
   mode = null;
-  setBaseline();
 
+  recordPendingChange();
+  setBaseline();
   addHistoryPoint();
+
   paint();
   graph();
 }
+
+/* Konstanter Primärstrom: Sekundärspannung null. */
 
 function holdCurrent() {
   if (step !== 2) {
@@ -999,6 +1046,8 @@ function holdCurrent() {
   }
 
   mode = null;
+
+  recordPendingChange();
   setBaseline();
 
   $("phase").textContent =
@@ -1105,8 +1154,15 @@ function paint() {
   $("dockVoltageLabel").textContent =
     step === 2 ? "U₂" : "Uᵢₙ𝒹";
 
-  /* Symbolischer Zeigerausschlag. */
-  const angle = Math.tanh(U / 0.4) * 1.05;
+  /*
+    Der Zeiger verwendet denselben Spannungsbereich
+    wie die blaue Diagrammskala.
+  */
+  const angle =
+    Math.max(
+      -1,
+      Math.min(1, U / voltageRange())
+    ) * 1.05;
 
   $("needle").setAttribute(
     "d",
@@ -1126,10 +1182,10 @@ function paint() {
   );
 }
 
-/* Blau: Spannung links. Grün: Fluss bzw. Strom rechts. */
+/* Blau: Spannung links. Grün: Fluss oder Strom rechts. */
 
 function drawAxes() {
-  const voltageMax = step === 2 ? 1.5 : 4;
+  const voltageMax = voltageRange();
   const quantityMax = step === 2 ? 2 : 0.2;
 
   let axes = "";
@@ -1150,7 +1206,7 @@ function drawAxes() {
         text-anchor="end"
         fill="#2b61b4"
         font-size="16">
-        ${fmt(fraction * voltageMax, 2)}
+        ${fmt(fraction * voltageMax, 3)}
       </text>
 
       <text
@@ -1209,7 +1265,7 @@ function drawAxes() {
 }
 
 function graph() {
-  const voltageMax = step === 2 ? 1.5 : 4;
+  const voltageMax = voltageRange();
   const quantityMax = step === 2 ? 2 : 0.2;
 
   function trace(key, scale) {
@@ -1247,12 +1303,15 @@ function reset() {
   mode = null;
   pointer = null;
   elapsed = 0;
+
   pos = -1.6;
   I = 0;
+
   clock = 0;
   history = [];
 
   setBaseline();
+  addHistoryPoint();
 
   $("phase").textContent =
     "Bereit: Primärstrom verändern.";
@@ -1289,6 +1348,11 @@ function selectStep(number) {
       ? "Blau: U₂ in V"
       : "Blau: Uᵢₙ𝒹 in V";
 
+  $("meterRangeText").textContent =
+    "Spannungsbereich von Zeiger und Diagramm: ±" +
+    fmt(voltageRange(), 2) +
+    " V. Größere Werte sind digital ablesbar.";
+
   $("next").textContent =
     number === 2
       ? "Gemeinsam auswerten →"
@@ -1314,7 +1378,7 @@ function selectStep(number) {
 }
 
 /*
-  Gleiche automatische Bewegung für den Vergleich:
+  Identische automatische Bewegung für den Vergleich:
   links außerhalb → Spulenmitte → links außerhalb.
 */
 
@@ -1330,6 +1394,8 @@ function autoMagnet(duration) {
   history = [];
 
   setBaseline();
+  addHistoryPoint();
+
   paint();
   graph();
 }
@@ -1372,7 +1438,10 @@ $("pole").onchange = () => {
     polarity === 1 ? "S" : "N";
 
   history = [];
+
   setBaseline();
+  addHistoryPoint();
+
   paint();
   graph();
 };
@@ -1383,6 +1452,8 @@ $("turns").onchange = () => {
   clock = 0;
 
   setBaseline();
+  addHistoryPoint();
+
   windings();
   paint();
   graph();
@@ -1427,6 +1498,8 @@ $("run").onclick = () => {
   };
 
   setBaseline();
+  addHistoryPoint();
+
   paint();
   graph();
 };
@@ -1456,8 +1529,6 @@ document.querySelectorAll("[data-step]")
   });
 
 /* Magnet direkt mit Maus oder Finger bewegen. */
-
-let dragOffset = 0;
 
 function pointerPosition(event) {
   const svgPoint =
@@ -1494,7 +1565,9 @@ $("magnet").addEventListener(
       Beim Antippen springt der Magnet nicht.
     */
     const point = pointerPosition(event);
-    dragOffset = point.x - (405 + pos * 145);
+
+    dragOffset =
+      point.x - (405 + pos * 145);
 
     $("magnet").setPointerCapture(pointer);
     event.preventDefault();
