@@ -1,0 +1,1629 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Induktionslabor</title>
+
+<style>
+:root {
+  --chart-height: 265px;
+  --voltage-color: #2b61b4;
+  --flux-color: #00715b;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding-bottom: calc(
+    var(--chart-height) + env(safe-area-inset-bottom) + 24px
+  );
+  background: #f1f5ef;
+  color: #153e39;
+  font: 17px/1.6 system-ui, sans-serif;
+}
+
+main {
+  max-width: 1050px;
+  margin: auto;
+  padding: 24px;
+}
+
+h1 {
+  font-size: clamp(30px, 6vw, 48px);
+  line-height: 1.15;
+}
+
+h2 {
+  line-height: 1.25;
+}
+
+nav,
+.row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+button,
+select {
+  font: inherit;
+  min-height: 46px;
+  padding: 9px 14px;
+  border: 1px solid #cbdcd3;
+  border-radius: 10px;
+  background: white;
+  color: #153e39;
+  cursor: pointer;
+}
+
+select {
+  max-width: 100%;
+}
+
+button.active,
+.primary {
+  background: #006c57;
+  color: white;
+}
+
+nav button {
+  flex: 1;
+}
+
+.card {
+  margin: 22px 0;
+  background: white;
+  padding: clamp(16px, 4vw, 28px);
+  border: 1px solid #d4e2db;
+  border-radius: 18px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 24px;
+}
+
+.grid > div {
+  min-width: 0;
+}
+
+.control {
+  padding: 16px;
+  background: #edf4ed;
+  border-radius: 12px;
+  margin: 14px 0;
+}
+
+label {
+  display: block;
+  font-weight: 650;
+}
+
+input[type="range"] {
+  width: 100%;
+  height: 40px;
+  accent-color: #006c57;
+}
+
+svg {
+  display: block;
+  width: 100%;
+  background: #f2f6f0;
+  border-radius: 12px;
+}
+
+.magnet-scene {
+  touch-action: pan-y;
+}
+
+.magnet-handle {
+  touch-action: none;
+  cursor: grab;
+}
+
+.magnet-handle:active {
+  cursor: grabbing;
+}
+
+.display {
+  background: #102e2b;
+  color: white;
+  padding: 18px;
+  border-radius: 12px;
+  margin: 14px 0;
+}
+
+.reading {
+  color: #a9cdff;
+  font: 34px/1.5 ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+#extraReading {
+  color: #a7efd0;
+}
+
+.minor {
+  font-size: 14px;
+  color: #506a62;
+}
+
+.note {
+  padding: 14px;
+  background: #fff6df;
+  border-left: 3px solid #d3a343;
+  margin: 16px 0;
+}
+
+.actions {
+  margin-top: 24px;
+}
+
+details {
+  margin: 20px 0;
+  font-size: 14px;
+}
+
+summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #d49825;
+  outline-offset: 3px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* Dauerhaft sichtbarer Zeitverlauf. */
+
+.chart-dock {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+
+  height: calc(
+    var(--chart-height) + env(safe-area-inset-bottom)
+  );
+
+  padding: 8px 16px;
+  padding-bottom: calc(
+    8px + env(safe-area-inset-bottom)
+  );
+
+  background: white;
+  border-top: 2px solid #cbdcd3;
+  box-shadow: 0 -6px 22px #153e3920;
+}
+
+.chart-inner {
+  max-width: 1050px;
+  height: 100%;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+}
+
+.chart-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.chart-reading {
+  color: var(--voltage-color);
+  font: 16px/1.4 ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  margin: 2px 0;
+  font-size: 12px;
+}
+
+.voltage-color {
+  color: var(--voltage-color);
+}
+
+.flux-color {
+  color: var(--flux-color);
+}
+
+.plot {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: white;
+  border-radius: 0;
+}
+
+.chart-hint {
+  margin: 0;
+  font-size: 11px;
+  color: #506a62;
+}
+
+@media (max-width: 720px) {
+  :root {
+    --chart-height: 205px;
+  }
+
+  main {
+    padding: 16px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  nav button {
+    font-size: 14px;
+    padding: 8px;
+  }
+
+  .chart-dock {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .chart-heading h3,
+  .chart-reading {
+    font-size: 14px;
+  }
+
+  .legend {
+    font-size: 11px;
+  }
+
+  .chart-hint {
+    display: none;
+  }
+}
+
+@media (max-height: 550px) {
+  :root {
+    --chart-height: 145px;
+  }
+
+  .chart-dock {
+    padding-top: 4px;
+  }
+
+  .chart-heading h3 {
+    font-size: 13px;
+  }
+
+  .legend {
+    font-size: 10px;
+    margin: 0;
+  }
+
+  .chart-hint {
+    display: none;
+  }
+}
+
+@media print {
+  body {
+    padding-bottom: 0;
+  }
+
+  .chart-dock {
+    position: static;
+    height: 260px;
+    box-shadow: none;
+  }
+}
+</style>
+</head>
+
+<body>
+
+<main>
+
+<p class="minor">
+  LF 5 · Magnetische Induktion · Interaktives Modell
+</p>
+
+<h1>Wann entsteht eine Spannung?</h1>
+
+<nav aria-label="Versuche">
+  <button data-step="0">1 · Magnet bewegen</button>
+  <button data-step="1">2 · Windungszahl</button>
+  <button data-step="2">3 · Zwei Spulen</button>
+</nav>
+
+<section class="card">
+
+<h2 id="title" tabindex="-1"></h2>
+<p id="task"></p>
+
+<div class="grid">
+
+<div>
+
+<!-- Versuch 1 und 2 -->
+
+<svg
+  id="magnetScene"
+  class="magnet-scene"
+  viewBox="0 0 600 280"
+  role="group"
+  aria-label="Beweglicher Stabmagnet und Spule">
+
+  <defs>
+    <marker
+      id="arrow"
+      viewBox="0 0 10 10"
+      refX="8"
+      refY="5"
+      markerWidth="5"
+      markerHeight="5"
+      orient="auto">
+
+      <path
+        d="M0 0L10 5L0 10Z"
+        fill="#00715b">
+      </path>
+    </marker>
+  </defs>
+
+  <g id="coilBack"></g>
+
+  <g
+    id="magnet"
+    class="magnet-handle"
+    aria-label="Magnet mit dem Finger ziehen">
+
+    <rect
+      x="-70"
+      y="-22"
+      width="70"
+      height="44"
+      rx="3"
+      fill="#c82c40">
+    </rect>
+
+    <rect
+      x="0"
+      y="-22"
+      width="70"
+      height="44"
+      rx="3"
+      fill="#2765b0">
+    </rect>
+
+    <text
+      id="poleLeft"
+      x="-38"
+      y="7"
+      fill="white"
+      font-size="21"
+      text-anchor="middle">N</text>
+
+    <text
+      id="poleRight"
+      x="35"
+      y="7"
+      fill="white"
+      font-size="21"
+      text-anchor="middle">S</text>
+  </g>
+
+  <g id="coilFront"></g>
+
+  <text
+    id="coilLabel"
+    x="405"
+    y="65"
+    text-anchor="middle"
+    font-size="18"
+    fill="#153e39">
+  </text>
+
+  <path
+    d="M375 218H460"
+    stroke="#00715b"
+    stroke-width="2"
+    marker-end="url(#arrow)">
+  </path>
+
+  <text
+    x="420"
+    y="245"
+    text-anchor="middle"
+    font-size="14"
+    fill="#153e39">
+    Positive Flussrichtung Φ
+  </text>
+
+  <text
+    x="25"
+    y="265"
+    font-size="13"
+    fill="#506a62">
+    Magnet ziehen oder den Positionsregler bedienen.
+  </text>
+</svg>
+
+<!-- Versuch 3 -->
+
+<svg
+  id="transformerScene"
+  viewBox="0 0 600 280"
+  role="img"
+  aria-label="Primärspule und offene Sekundärspule auf gemeinsamem Eisenkern"
+  hidden>
+
+  <path
+    d="M145 70H455V210H145Z"
+    stroke="#a5b3ad"
+    stroke-width="42"
+    fill="none">
+  </path>
+
+  <path
+    id="coreFlux"
+    d="M145 70H455V210H145Z"
+    stroke="#00715b"
+    stroke-width="3"
+    fill="none"
+    stroke-dasharray="12 8">
+  </path>
+
+  <g id="primaryCoil"></g>
+  <g id="secondaryCoil"></g>
+
+  <path
+    d="M112 104H60V180H112
+       M488 104H540V180H488"
+    stroke="#647b72"
+    stroke-width="2"
+    fill="none">
+  </path>
+
+  <circle
+    cx="60"
+    cy="142"
+    r="22"
+    fill="white"
+    stroke="#647b72">
+  </circle>
+
+  <circle
+    cx="540"
+    cy="142"
+    r="22"
+    fill="white"
+    stroke="#647b72">
+  </circle>
+
+  <text
+    x="60"
+    y="149"
+    text-anchor="middle"
+    font-size="18">I₁</text>
+
+  <text
+    x="540"
+    y="149"
+    text-anchor="middle"
+    font-size="18">V</text>
+
+  <text
+    x="145"
+    y="35"
+    text-anchor="middle"
+    font-size="17">Primärspule</text>
+
+  <text
+    x="455"
+    y="35"
+    text-anchor="middle"
+    font-size="17">Sekundärspule</text>
+
+  <text
+    x="300"
+    y="145"
+    text-anchor="middle"
+    font-size="17">Φ</text>
+
+  <text
+    x="300"
+    y="257"
+    text-anchor="middle"
+    font-size="14">
+    Gemeinsamer Eisenkern · Sekundärkreis offen
+  </text>
+</svg>
+
+<div class="display">
+
+  <div id="meterLabel">
+    Induktionsspannung Uᵢₙ𝒹
+  </div>
+
+  <div class="reading">
+    <output id="voltage">0,000</output> V
+  </div>
+
+  <div id="extraReading"></div>
+
+</div>
+
+<svg
+  viewBox="0 0 600 110"
+  role="img"
+  aria-label="Spannungsmessgerät mit Nullpunkt in der Mitte">
+
+  <path
+    d="M90 80Q300 -45 510 80"
+    stroke="#7a9188"
+    fill="none"
+    stroke-width="2">
+  </path>
+
+  <text x="80" y="100" font-size="14">−</text>
+  <text x="294" y="26" font-size="14">0</text>
+  <text x="510" y="100" font-size="14">+</text>
+
+  <path
+    id="needle"
+    d="M300 95L300 35"
+    stroke="#2b61b4"
+    stroke-width="4"
+    stroke-linecap="round">
+  </path>
+
+  <circle
+    cx="300"
+    cy="95"
+    r="5"
+    fill="#153e39">
+  </circle>
+</svg>
+
+<p class="minor">
+  Zeigerausschlag symbolisch; für Zahlenwerte gilt die Digitalanzeige.
+</p>
+
+</div>
+
+<div>
+
+<div id="magnetControls">
+
+  <div class="control">
+    <label for="position">Magnetposition</label>
+
+    <input
+      id="position"
+      type="range"
+      min="-1.8"
+      max="1.8"
+      step="0.01"
+      value="-1.6">
+
+    <div class="minor">
+      Links außerhalb ↔ Spulenmitte ↔ rechts außerhalb
+    </div>
+  </div>
+
+  <div class="row">
+    <button id="slow">Langsam bewegen</button>
+    <button id="fast">Schnell bewegen</button>
+    <button id="stop">Anhalten</button>
+  </div>
+
+  <div class="control">
+    <label for="pole">Magnetpolung</label>
+
+    <select id="pole">
+      <option value="1">
+        Nordpol links · Südpol rechts
+      </option>
+
+      <option value="-1">
+        Südpol links · Nordpol rechts
+      </option>
+    </select>
+  </div>
+
+  <div id="turnControls" class="control" hidden>
+    <label for="turns">Windungszahl der Spule</label>
+
+    <select id="turns">
+      <option value="150">N = 150</option>
+      <option value="1200">N = 1200</option>
+    </select>
+
+    <p class="minor">
+      „Langsam“ oder „Schnell“ startet immer dieselbe Bewegung
+      aus derselben Position – für einen fairen Vergleich.
+    </p>
+  </div>
+
+</div>
+
+<div id="transformerControls" hidden>
+
+  <div class="control">
+    <label for="current">
+      Primärstrom I₁:
+      <output id="currentValue"></output> A
+    </label>
+
+    <input
+      id="current"
+      type="range"
+      min="0"
+      max="2"
+      step="0.01"
+      value="0">
+
+    <p class="minor">
+      Verändere den Strom und halte den Regler anschließend still.
+    </p>
+  </div>
+
+  <div class="control">
+    <label for="amplitude">
+      Zielstrom für den automatischen Verlauf
+    </label>
+
+    <select id="amplitude">
+      <option value="1">1 A</option>
+      <option value="2">2 A</option>
+    </select>
+
+    <label for="ramp">
+      Dauer jeder Stromänderung
+    </label>
+
+    <select id="ramp">
+      <option value="2">2 s · langsam</option>
+      <option value="0.5">0,5 s · schnell</option>
+    </select>
+  </div>
+
+  <div class="row">
+    <button id="run" class="primary">
+      Anstieg → konstant → Abfall
+    </button>
+
+    <button id="hold">
+      Strom konstant halten
+    </button>
+  </div>
+
+  <p id="phase" class="note">
+    Bereit: Primärstrom verändern.
+  </p>
+
+</div>
+
+<p class="minor">
+  Spannungsvorzeichen gelten für die festgelegte Wicklungs-
+  und Anschlussrichtung; bei vertauschten Messleitungen
+  kehren sie sich um.
+</p>
+
+</div>
+</div>
+
+<div class="row actions">
+  <button id="reset">Versuch zurücksetzen</button>
+  <button id="next" class="primary">Weiter →</button>
+</div>
+
+<p id="finish" class="note" hidden>
+  Führt eure Erkenntnisse gemeinsam zusammen:
+  Wann entsteht Induktionsspannung, wodurch wird ihr Betrag
+  beeinflusst und wann wechselt ihr Vorzeichen?
+</p>
+
+</section>
+
+<details>
+  <summary>Modell und Grenzen</summary>
+
+  <p>
+    Dies sind berechnete Modellwerte, keine Messdaten eines realen
+    Aufbaus. Der Magnet erzeugt einen positionsabhängigen Fluss
+    durch eine Spulenwindung; die induzierte Spannung ergibt sich
+    aus dessen zeitlicher Änderung und der Windungszahl.
+    Die sichtbaren Windungen sind symbolisch reduziert.
+  </p>
+
+  <p>
+    Beim Vergleich der Windungszahlen bleiben Spulengeometrie
+    und Magnetbewegung gleich. Das Eisenkernmodell verwendet
+    einen linearen Zusammenhang zwischen Primärstrom und
+    gemeinsamem magnetischem Fluss.
+    Sättigung, Streufluss, Verluste und Rückwirkung einer Last
+    werden nicht nachgebildet. Die Sekundärspule ist unbelastet.
+  </p>
+
+  <p>
+    Ein stillstehender Magnet kann weiterhin einen magnetischen
+    Fluss durch die Spule erzeugen. Ohne Flussänderung ist
+    die Induktionsspannung jedoch null.
+  </p>
+
+  <p>
+    Die Lenz’sche Regel beschreibt die Wirkung eines möglichen
+    induzierten Stroms entgegen der verursachenden Flussänderung.
+    Ein offener Messkreis zeigt zunächst die Spannung.
+  </p>
+</details>
+
+<details>
+  <summary>Für die Lehrkraft: Modellgleichungen</summary>
+
+  <p>
+    Uᵢₙ𝒹 = −N · dΦ/dt.
+    Beim Magnetversuch gilt:
+    Φ(x) = −p · 0,00015 Wb / [1 + (x/0,65)²]³ᐟ².
+    x ist eine normierte Position, p bezeichnet die Polung.
+    Die Änderung wird pro Animationsschritt berechnet.
+  </p>
+
+  <p>
+    Die Polumschaltung stellt einen neuen Ausgangszustand her
+    und bildet keinen realen Drehvorgang ab.
+    Beim Zurücksetzen und beim Start einer Vergleichsbewegung
+    wird keine künstliche Spannung durch den Positionssprung
+    angezeigt.
+  </p>
+
+  <p>
+    Beim Eisenkernmodell gilt:
+    Φ = k · I₁ mit k = 0,001 Wb/A und N₂ = 300.
+    Die Flusskopplung k ist ein gewählter Modellparameter,
+    keine Materialkonstante.
+  </p>
+</details>
+
+</main>
+
+<!-- Der Zeitverlauf bleibt dauerhaft unten sichtbar. -->
+
+<aside class="chart-dock" aria-label="Live-Zeitverlauf">
+  <div class="chart-inner">
+
+    <div class="chart-heading">
+      <h3>Zeitverlauf · letzte 10 Sekunden</h3>
+
+      <div class="chart-reading">
+        <span id="dockVoltageLabel">Uᵢₙ𝒹</span>
+        = <output id="dockVoltage">0,000</output> V
+      </div>
+    </div>
+
+    <p class="legend">
+      <span class="voltage-color" id="voltageLegend">
+        Blau: Uᵢₙ𝒹 in V
+      </span>
+      ·
+      <span class="flux-color" id="quantityLegend">
+        Grün: Φ in mWb
+      </span>
+    </p>
+
+    <svg
+      id="plot"
+      class="plot"
+      viewBox="0 0 900 250"
+      preserveAspectRatio="none"
+      role="img"
+      aria-label="Zeitdiagramm für die letzten zehn Sekunden">
+
+      <g id="axes"></g>
+
+      <path
+        id="traceU"
+        fill="none"
+        stroke="#2b61b4"
+        stroke-width="2.5"
+        vector-effect="non-scaling-stroke">
+      </path>
+
+      <path
+        id="traceQuantity"
+        fill="none"
+        stroke="#00715b"
+        stroke-width="2"
+        vector-effect="non-scaling-stroke">
+      </path>
+    </svg>
+
+    <p class="chart-hint">
+      Blau: linke Skala · Grün: rechte Skala ·
+      Spitzen außerhalb des Diagrammbereichs werden am Rand begrenzt.
+    </p>
+
+  </div>
+</aside>
+
+<script>
+"use strict";
+
+const $ = id => document.getElementById(id);
+
+const fmt = (value, digits = 3) =>
+  (Math.abs(value) < 0.0005 ? 0 : value)
+    .toLocaleString("de-DE", {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits
+    });
+
+const tasks = [
+  [
+    "Magnet und Spule",
+
+    "Bewege den Magneten langsam und schnell in die Spule " +
+    "hinein und heraus, halte ihn zwischendurch an und " +
+    "beschreibe, wann eine Spannung entsteht und wie sich " +
+    "Betrag und Vorzeichen verändern."
+  ],
+
+  [
+    "Welchen Einfluss hat die Windungszahl?",
+
+    "Vergleiche bei gleicher automatischer Magnetbewegung " +
+    "die Spulen mit 150 und 1200 Windungen und beschreibe " +
+    "den Einfluss der Windungszahl auf die Induktionsspannung."
+  ],
+
+  [
+    "Induktion ohne bewegten Magneten",
+
+    "Verändere den Primärstrom langsam und schnell, halte " +
+    "ihn konstant und beschreibe die Spannung an der " +
+    "Sekundärspule während Anstieg, konstantem Strom und Abfall."
+  ]
+];
+
+let step = 0;
+let pos = -1.6;
+let I = 0;
+
+let mode = null;
+let elapsed = 0;
+
+let history = [];
+let clock = 0;
+let previousPhi = 0;
+let lastTime = null;
+let U = 0;
+
+let pointer = null;
+
+/* Magnetischer Fluss durch eine Windung. */
+
+function fluxMagnet(x, polarity) {
+  return (
+    -polarity * 0.00015 /
+    Math.pow(1 + Math.pow(x / 0.65, 2), 1.5)
+  );
+}
+
+function flux() {
+  if (step === 2) {
+    return 0.001 * I;
+  }
+
+  return fluxMagnet(
+    pos,
+    Number($("pole").value)
+  );
+}
+
+function N() {
+  if (step === 2) {
+    return 300;
+  }
+
+  if (step === 1) {
+    return Number($("turns").value);
+  }
+
+  return 150;
+}
+
+function setBaseline() {
+  previousPhi = flux();
+  U = 0;
+}
+
+function currentQuantity() {
+  return step === 2 ? I : flux() * 1000;
+}
+
+function addHistoryPoint() {
+  history.push({
+    t: clock,
+    u: U,
+    q: currentQuantity()
+  });
+
+  while (
+    history.length &&
+    history[0].t < clock - 10
+  ) {
+    history.shift();
+  }
+}
+
+/*
+  Beim Loslassen oder Anhalten:
+  Spannung sofort null, vorhandenen Fluss beibehalten.
+*/
+
+function stopMagnetMovement() {
+  if (step === 2) {
+    return;
+  }
+
+  mode = null;
+  setBaseline();
+
+  addHistoryPoint();
+  paint();
+  graph();
+}
+
+function holdCurrent() {
+  if (step !== 2) {
+    return;
+  }
+
+  mode = null;
+  setBaseline();
+
+  $("phase").textContent =
+    "Primärstrom konstant: keine weitere Flussänderung.";
+
+  addHistoryPoint();
+  paint();
+  graph();
+}
+
+/* Symbolisch reduzierte, zusammenhängende Wicklung. */
+
+function windings() {
+  let back = "";
+  let front = "";
+
+  const count = N() === 1200 ? 24 : 10;
+  const pitch = 80 / (count - 1);
+
+  for (let n = 0; n < count; n++) {
+    const x = 365 + n * pitch;
+
+    back += `
+      <path
+        d="M${x} 85
+           C${x - 20} 85 ${x - 20} 205 ${x} 205"
+        stroke="#cb9562"
+        stroke-width="3"
+        fill="none"
+      />
+    `;
+
+    front += `
+      <path
+        d="M${x} 205
+           C${x + 20} 205 ${x + 20} 85 ${x + pitch} 85"
+        stroke="#a9652d"
+        stroke-width="3"
+        fill="none"
+      />
+    `;
+  }
+
+  $("coilBack").innerHTML = back;
+  $("coilFront").innerHTML = front;
+
+  $("coilLabel").textContent =
+    "Spule · N = " + N();
+}
+
+function coreCoils() {
+  const coils = [
+    ["primaryCoil", 145],
+    ["secondaryCoil", 455]
+  ];
+
+  for (const [id, x] of coils) {
+    let paths = "";
+
+    for (let j = 0; j < 9; j++) {
+      const y = 99 + j * 10;
+
+      paths += `
+        <path
+          d="M${x - 27} ${y}
+             Q${x} ${y + 12} ${x + 27} ${y}"
+          fill="none"
+          stroke="#a9652d"
+          stroke-width="4"
+        />
+      `;
+    }
+
+    $(id).innerHTML = paths;
+  }
+}
+
+function paint() {
+  const phi = flux();
+
+  $("magnet").setAttribute(
+    "transform",
+    `translate(${405 + pos * 145} 145)`
+  );
+
+  $("position").value = pos;
+  $("current").value = I;
+  $("currentValue").textContent = fmt(I, 2);
+
+  $("voltage").textContent = fmt(U);
+  $("dockVoltage").textContent = fmt(U);
+
+  $("extraReading").textContent =
+    step === 2
+      ? "I₁ = " + fmt(I, 2) + " A · N₂ = 300"
+      : "Φ = " + fmt(phi * 1000) +
+        " mWb · N = " + N();
+
+  $("meterLabel").textContent =
+    step === 2
+      ? "Sekundärspannung U₂"
+      : "Induktionsspannung Uᵢₙ𝒹";
+
+  $("dockVoltageLabel").textContent =
+    step === 2 ? "U₂" : "Uᵢₙ𝒹";
+
+  /* Symbolischer Zeigerausschlag. */
+  const angle = Math.tanh(U / 0.4) * 1.05;
+
+  $("needle").setAttribute(
+    "d",
+    `M300 95
+     L${300 + Math.sin(angle) * 75}
+      ${95 - Math.cos(angle) * 75}`
+  );
+
+  $("coreFlux").setAttribute(
+    "stroke-width",
+    1 + I * 2
+  );
+
+  $("coreFlux").setAttribute(
+    "opacity",
+    I === 0 ? 0 : 0.8
+  );
+}
+
+/* Blau: Spannung links. Grün: Fluss bzw. Strom rechts. */
+
+function drawAxes() {
+  const voltageMax = step === 2 ? 1.5 : 4;
+  const quantityMax = step === 2 ? 2 : 0.2;
+
+  let axes = "";
+
+  for (const fraction of [-1, -0.5, 0, 0.5, 1]) {
+    const y = 115 - fraction * 90;
+
+    axes += `
+      <path
+        d="M65 ${y}H830"
+        stroke="#dce6df"
+        vector-effect="non-scaling-stroke"
+      />
+
+      <text
+        x="55"
+        y="${y + 5}"
+        text-anchor="end"
+        fill="#2b61b4"
+        font-size="16">
+        ${fmt(fraction * voltageMax, 2)}
+      </text>
+
+      <text
+        x="840"
+        y="${y + 5}"
+        fill="#00715b"
+        font-size="16">
+        ${fmt(fraction * quantityMax, 2)}
+      </text>
+    `;
+  }
+
+  axes += `
+    <text
+      x="18"
+      y="17"
+      fill="#2b61b4"
+      font-size="16">U / V</text>
+
+    <text
+      x="825"
+      y="17"
+      fill="#00715b"
+      font-size="16">
+      ${step === 2 ? "I₁ / A" : "Φ / mWb"}
+    </text>
+  `;
+
+  for (let j = 0; j <= 5; j++) {
+    const x = 65 + j * 153;
+
+    axes += `
+      <text
+        x="${x}"
+        y="230"
+        text-anchor="middle"
+        font-size="16"
+        fill="#506a62">
+        ${-10 + j * 2}
+      </text>
+    `;
+  }
+
+  axes += `
+    <text
+      x="830"
+      y="249"
+      text-anchor="end"
+      font-size="14"
+      fill="#506a62">
+      Zeit relativ zu jetzt / s
+    </text>
+  `;
+
+  $("axes").innerHTML = axes;
+}
+
+function graph() {
+  const voltageMax = step === 2 ? 1.5 : 4;
+  const quantityMax = step === 2 ? 2 : 0.2;
+
+  function trace(key, scale) {
+    return history.map((point, index) => {
+      const x =
+        830 - (clock - point.t) * 76.5;
+
+      const normalized = Math.max(
+        -1,
+        Math.min(1, point[key] / scale)
+      );
+
+      const y = 115 - normalized * 90;
+
+      return (
+        (index ? "L" : "M") +
+        x.toFixed(1) + " " +
+        y.toFixed(1)
+      );
+    }).join(" ");
+  }
+
+  $("traceU").setAttribute(
+    "d",
+    trace("u", voltageMax)
+  );
+
+  $("traceQuantity").setAttribute(
+    "d",
+    trace("q", quantityMax)
+  );
+}
+
+function reset() {
+  mode = null;
+  pointer = null;
+  elapsed = 0;
+  pos = -1.6;
+  I = 0;
+  clock = 0;
+  history = [];
+
+  setBaseline();
+
+  $("phase").textContent =
+    "Bereit: Primärstrom verändern.";
+
+  $("finish").hidden = true;
+
+  paint();
+  graph();
+}
+
+function selectStep(number) {
+  step = number;
+
+  reset();
+
+  $("title").textContent = tasks[number][0];
+  $("task").textContent = tasks[number][1];
+
+  $("magnetScene").hidden = number === 2;
+  $("magnetControls").hidden = number === 2;
+
+  $("transformerScene").hidden = number !== 2;
+  $("transformerControls").hidden = number !== 2;
+
+  $("turnControls").hidden = number !== 1;
+
+  $("quantityLegend").textContent =
+    number === 2
+      ? "Grün: I₁ in A"
+      : "Grün: Φ in mWb";
+
+  $("voltageLegend").textContent =
+    number === 2
+      ? "Blau: U₂ in V"
+      : "Blau: Uᵢₙ𝒹 in V";
+
+  $("next").textContent =
+    number === 2
+      ? "Gemeinsam auswerten →"
+      : "Weiter zu Versuch " + (number + 2) + " →";
+
+  document.querySelectorAll("[data-step]")
+    .forEach((button, index) => {
+      button.classList.toggle(
+        "active",
+        index === number
+      );
+
+      button.setAttribute(
+        "aria-pressed",
+        index === number
+      );
+    });
+
+  windings();
+  drawAxes();
+  paint();
+  graph();
+}
+
+/*
+  Gleiche automatische Bewegung für den Vergleich:
+  links außerhalb → Spulenmitte → links außerhalb.
+*/
+
+function autoMagnet(duration) {
+  mode = {
+    kind: "magnet",
+    duration
+  };
+
+  elapsed = 0;
+  pos = -1.7;
+  clock = 0;
+  history = [];
+
+  setBaseline();
+  paint();
+  graph();
+}
+
+$("slow").onclick = () => autoMagnet(8);
+$("fast").onclick = () => autoMagnet(4);
+$("stop").onclick = stopMagnetMovement;
+
+$("position").addEventListener("input", () => {
+  mode = null;
+  pos = Number($("position").value);
+});
+
+/* Loslassen des Positionsreglers: sofort 0 V. */
+
+$("position").addEventListener(
+  "change",
+  stopMagnetMovement
+);
+
+$("position").addEventListener(
+  "pointerup",
+  stopMagnetMovement
+);
+
+$("position").addEventListener(
+  "pointercancel",
+  stopMagnetMovement
+);
+
+$("pole").onchange = () => {
+  mode = null;
+
+  const polarity = Number($("pole").value);
+
+  $("poleLeft").textContent =
+    polarity === 1 ? "N" : "S";
+
+  $("poleRight").textContent =
+    polarity === 1 ? "S" : "N";
+
+  history = [];
+  setBaseline();
+  paint();
+  graph();
+};
+
+$("turns").onchange = () => {
+  mode = null;
+  history = [];
+  clock = 0;
+
+  setBaseline();
+  windings();
+  paint();
+  graph();
+};
+
+$("current").addEventListener("input", () => {
+  mode = null;
+  I = Number($("current").value);
+
+  $("phase").textContent =
+    "Manuelle Stromänderung; Regler stillhalten " +
+    "für konstanten Strom.";
+});
+
+/* Loslassen des Stromreglers: Strom konstant, U₂ = 0. */
+
+$("current").addEventListener(
+  "change",
+  holdCurrent
+);
+
+$("current").addEventListener(
+  "pointerup",
+  holdCurrent
+);
+
+$("current").addEventListener(
+  "pointercancel",
+  holdCurrent
+);
+
+$("run").onclick = () => {
+  I = 0;
+  elapsed = 0;
+  clock = 0;
+  history = [];
+
+  mode = {
+    kind: "current",
+    amplitude: Number($("amplitude").value),
+    ramp: Number($("ramp").value)
+  };
+
+  setBaseline();
+  paint();
+  graph();
+};
+
+$("hold").onclick = holdCurrent;
+$("reset").onclick = reset;
+
+$("next").onclick = () => {
+  if (step < 2) {
+    selectStep(step + 1);
+    $("title").focus();
+  } else {
+    $("finish").hidden = false;
+
+    $("finish").scrollIntoView({
+      behavior: "smooth",
+      block: "center"
+    });
+  }
+};
+
+document.querySelectorAll("[data-step]")
+  .forEach(button => {
+    button.onclick = () => {
+      selectStep(Number(button.dataset.step));
+    };
+  });
+
+/* Magnet direkt mit Maus oder Finger bewegen. */
+
+let dragOffset = 0;
+
+function pointerPosition(event) {
+  const svgPoint =
+    $("magnetScene").createSVGPoint();
+
+  svgPoint.x = event.clientX;
+  svgPoint.y = event.clientY;
+
+  return svgPoint.matrixTransform(
+    $("magnetScene").getScreenCTM().inverse()
+  );
+}
+
+function drag(event) {
+  const point = pointerPosition(event);
+
+  pos = Math.max(
+    -1.8,
+    Math.min(
+      1.8,
+      (point.x - dragOffset - 405) / 145
+    )
+  );
+}
+
+$("magnet").addEventListener(
+  "pointerdown",
+  event => {
+    mode = null;
+    pointer = event.pointerId;
+
+    /*
+      Greifposition erhalten:
+      Beim Antippen springt der Magnet nicht.
+    */
+    const point = pointerPosition(event);
+    dragOffset = point.x - (405 + pos * 145);
+
+    $("magnet").setPointerCapture(pointer);
+    event.preventDefault();
+  }
+);
+
+$("magnet").addEventListener(
+  "pointermove",
+  event => {
+    if (event.pointerId === pointer) {
+      drag(event);
+    }
+  }
+);
+
+for (const type of [
+  "pointerup",
+  "pointercancel",
+  "lostpointercapture"
+]) {
+  $("magnet").addEventListener(type, () => {
+    if (pointer !== null) {
+      pointer = null;
+      stopMagnetMovement();
+    }
+  });
+}
+
+/* Berechnung und Animation. */
+
+function frame(time) {
+  if (lastTime === null) {
+    lastTime = time;
+  }
+
+  const dt = Math.min(
+    (time - lastTime) / 1000,
+    0.05
+  );
+
+  lastTime = time;
+
+  if (dt > 0) {
+    clock += dt;
+
+    let automaticFinished = false;
+
+    if (mode) {
+      elapsed += dt;
+
+      if (mode.kind === "magnet") {
+        const progress = Math.min(
+          elapsed / mode.duration,
+          1
+        );
+
+        pos =
+          -0.85 -
+          0.85 * Math.cos(2 * Math.PI * progress);
+
+        if (progress === 1) {
+          mode = null;
+          automaticFinished = true;
+        }
+
+      } else {
+        const rampTime = mode.ramp;
+        const amplitude = mode.amplitude;
+
+        if (elapsed < rampTime) {
+          I = amplitude * elapsed / rampTime;
+
+          $("phase").textContent =
+            "1 · Strom steigt";
+
+        } else if (elapsed < rampTime + 2) {
+          I = amplitude;
+
+          $("phase").textContent =
+            "2 · Strom bleibt konstant";
+
+        } else if (elapsed < 2 * rampTime + 2) {
+          I =
+            amplitude *
+            (1 - (elapsed - rampTime - 2) / rampTime);
+
+          $("phase").textContent =
+            "3 · Strom fällt";
+
+        } else {
+          I = 0;
+          mode = null;
+          automaticFinished = true;
+
+          $("phase").textContent =
+            "Abgeschlossen · Strom bleibt bei 0 A";
+        }
+      }
+    }
+
+    const phi = flux();
+
+    U = automaticFinished
+      ? 0
+      : -N() * (phi - previousPhi) / dt;
+
+    previousPhi = phi;
+
+    addHistoryPoint();
+
+    paint();
+    graph();
+  }
+
+  requestAnimationFrame(frame);
+}
+
+document.addEventListener(
+  "visibilitychange",
+  () => {
+    lastTime = null;
+    setBaseline();
+  }
+);
+
+coreCoils();
+selectStep(0);
+requestAnimationFrame(frame);
+</script>
+
+</body>
+</html>
